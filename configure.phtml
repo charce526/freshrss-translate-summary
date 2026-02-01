@@ -1,0 +1,90 @@
+<?php
+
+$baseUrl = (string) $this->getConfigValue('api_base_url');
+$apiKey = (string) $this->getConfigValue('api_key');
+$model = (string) $this->getConfigValue('model');
+$translatePrompt = (string) $this->getConfigValue('translate_prompt');
+$summaryPrompt = (string) $this->getConfigValue('summary_prompt');
+$csrf = '';
+$csrfFieldRendered = false;
+
+if (function_exists('_csrf')) {
+    $csrfFieldRendered = true;
+} elseif (class_exists('FreshRSS_Context') && method_exists('FreshRSS_Context', 'csrf')) {
+    $csrf = (string) FreshRSS_Context::csrf();
+} elseif (class_exists('Minz_Session') && method_exists('Minz_Session', 'param')) {
+    $csrf = (string) Minz_Session::param('csrf');
+} elseif (class_exists('Minz_Session') && method_exists('Minz_Session', 'get')) {
+    $csrf = (string) Minz_Session::get('csrf');
+}
+
+if ($baseUrl === '') {
+    $baseUrl = 'https://api.openai.com/v1';
+}
+
+if ($model === '') {
+    $model = 'gpt-3.5-turbo';
+}
+
+if ($translatePrompt === '') {
+    $translatePrompt = 'Translate the following text into Chinese, maintaining the original HTML structure where possible.';
+}
+
+if ($summaryPrompt === '') {
+    $summaryPrompt = 'Summarize the following text in Chinese with key points, keeping it concise.';
+}
+
+?>
+<form method="post" action="<?php echo _url('extension', 'configure', 'e', $this->getName()); ?>">
+    <?php if ($csrfFieldRendered): ?>
+        <?php echo _csrf(); ?>
+    <?php elseif ($csrf !== ''): ?>
+        <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
+        <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php endif; ?>
+    <fieldset class="form-group">
+        <legend>OpenAI-compatible API</legend>
+
+        <div class="form-group">
+            <label class="group-name" for="translate-cn-api-base-url">API Base URL</label>
+            <div class="group-controls">
+                <input id="translate-cn-api-base-url" name="api_base_url" type="text" value="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://api.openai.com/v1">
+                <p class="help">Example: https://api.openai.com/v1</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="group-name" for="translate-cn-api-key">API Key</label>
+            <div class="group-controls">
+                <input id="translate-cn-api-key" name="api_key" type="password" value="<?php echo htmlspecialchars($apiKey, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="new-password">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="group-name" for="translate-cn-model">Model Name</label>
+            <div class="group-controls">
+                <input id="translate-cn-model" name="model" type="text" value="<?php echo htmlspecialchars($model, ENT_QUOTES, 'UTF-8'); ?>" placeholder="gpt-4o">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="group-name" for="translate-cn-translate-prompt">Translate Prompt</label>
+            <div class="group-controls">
+                <textarea id="translate-cn-translate-prompt" name="translate_prompt" rows="4"><?php echo htmlspecialchars($translatePrompt, ENT_QUOTES, 'UTF-8'); ?></textarea>
+                <p class="help">System prompt used for translation.</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="group-name" for="translate-cn-summary-prompt">Summary Prompt</label>
+            <div class="group-controls">
+                <textarea id="translate-cn-summary-prompt" name="summary_prompt" rows="4"><?php echo htmlspecialchars($summaryPrompt, ENT_QUOTES, 'UTF-8'); ?></textarea>
+                <p class="help">System prompt used for summarization.</p>
+            </div>
+        </div>
+    </fieldset>
+
+    <div class="form-group form-action">
+        <button class="btn btn-important" type="submit">Save</button>
+    </div>
+</form>
