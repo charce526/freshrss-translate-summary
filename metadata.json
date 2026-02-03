@@ -1,8 +1,8 @@
 {
-  "name": "freshrss-translate-cn",
-  "author": "",
-  "description": "Translate FreshRSS entry content into Chinese via an OpenAI-compatible API.",
+  "name": "freshrss-translate-summary",
+  "author": "wogong",
+  "description": "Translate and summarize FreshRSS entry content into Chinese using an OpenAI-compatible API.",
   "version": "0.1.0",
-  "entrypoint": "TranslateCn",
+  "entrypoint": "TranslateSummary",
   "type": "user"
 }

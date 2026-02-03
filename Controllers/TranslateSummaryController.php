@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-final class FreshExtension_TranslateCn_Controller extends FreshRSS_ActionController {
+final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionController {
     public function translateAction(): void {
         $this->view = null;
 
-        $extension = Minz_ExtensionManager::findExtension('freshrss-translate-cn');
-        if (!$extension instanceof TranslateCnExtension) {
+        $extension = Minz_ExtensionManager::findExtension('freshrss-translate-summary');
+        if (!$extension instanceof TranslateSummaryExtension) {
             $this->sendJson(['ok' => false, 'error' => 'Extension not available.'], 500);
             return;
         }
@@ -44,8 +44,8 @@ final class FreshExtension_TranslateCn_Controller extends FreshRSS_ActionControl
     public function summaryAction(): void {
         $this->view = null;
 
-        $extension = Minz_ExtensionManager::findExtension('freshrss-translate-cn');
-        if (!$extension instanceof TranslateCnExtension) {
+        $extension = Minz_ExtensionManager::findExtension('freshrss-translate-summary');
+        if (!$extension instanceof TranslateSummaryExtension) {
             $this->sendJson(['ok' => false, 'error' => 'Extension not available.'], 500);
             return;
         }

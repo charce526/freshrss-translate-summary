@@ -26,7 +26,7 @@
       return window.context.translateCn.endpoint;
     }
 
-    return '?c=TranslateCn&a=translate';
+      return '?c=TranslateSummary&a=translate';
   }
 
   function getCsrfToken() {
@@ -113,8 +113,8 @@
     var toolbar = document.createElement('div');
     toolbar.className = 'translate-cn-toolbar';
     toolbar.dataset.entryId = entryId;
-    toolbar.dataset.translateEndpoint = '?c=TranslateCn&a=translate';
-    toolbar.dataset.summaryEndpoint = '?c=TranslateCn&a=summary';
+    toolbar.dataset.translateEndpoint = '?c=TranslateSummary&a=translate';
+    toolbar.dataset.summaryEndpoint = '?c=TranslateSummary&a=summary';
     toolbar.innerHTML =
       '<button class="translate-cn-button" type="button">Translate</button>' +
       '<button class="translate-cn-summary-button" type="button">Summary</button>' +

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-final class TranslateCnExtension extends Minz_Extension {
+final class TranslateSummaryExtension extends Minz_Extension {
     private const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     private const DEFAULT_MODEL = 'gpt-3.5-turbo';
     private const DEFAULT_TRANSLATE_PROMPT = 'Translate the following text into Chinese, maintaining the original HTML structure where possible.';
@@ -11,7 +11,7 @@ final class TranslateCnExtension extends Minz_Extension {
     public function init(): void {
         $this->registerHook('entry_before_display', [$this, 'injectTranslateUi']);
         $this->registerHook('js_vars', [$this, 'injectJsVars']);
-        $this->registerController('TranslateCn');
+        $this->registerController('TranslateSummary');
 
         Minz_View::appendScript($this->getFileUrl('translate.js'));
         Minz_View::appendStyle($this->getFileUrl('translate.css'));
@@ -45,7 +45,7 @@ final class TranslateCnExtension extends Minz_Extension {
 
     public function injectJsVars(array $vars): array {
         $vars['translateCn'] = [
-            'endpoint' => '?c=TranslateCn&a=translate',
+            'endpoint' => '?c=TranslateSummary&a=translate',
             'csrf' => $this->getCsrfToken(),
         ];
 
