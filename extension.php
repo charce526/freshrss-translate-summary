@@ -40,25 +40,6 @@ final class TranslateCnExtension extends Minz_Extension {
     }
 
     public function injectTranslateUi(FreshRSS_Entry $entry): FreshRSS_Entry {
-        $content = $this->getEntryContent($entry);
-        if ($content === null || strpos($content, 'translate-cn-toolbar') !== false) {
-            return $entry;
-        }
-
-        $entryId = htmlspecialchars((string) $entry->id(), ENT_QUOTES, 'UTF-8');
-        $translateEndpoint = htmlspecialchars('?c=TranslateCn&a=translate', ENT_QUOTES, 'UTF-8');
-        $summaryEndpoint = htmlspecialchars('?c=TranslateCn&a=summary', ENT_QUOTES, 'UTF-8');
-
-        $toolbar = '<div class="translate-cn-toolbar" data-entry-id="' . $entryId . '" data-translate-endpoint="' . $translateEndpoint . '" data-summary-endpoint="' . $summaryEndpoint . '">' .
-            '<button class="translate-cn-button" type="button">Translate</button>' .
-            '<button class="translate-cn-summary-button" type="button">Summary</button>' .
-            '<span class="translate-cn-status" aria-live="polite"></span>' .
-            '</div>' .
-            '<div class="translate-cn-result translate-cn-result-translate" data-entry-id="' . $entryId . '" data-result-type="translate" hidden></div>' .
-            '<div class="translate-cn-result translate-cn-result-summary" data-entry-id="' . $entryId . '" data-result-type="summary" hidden></div>';
-
-        $this->setEntryContent($entry, $toolbar . $content);
-
         return $entry;
     }
 

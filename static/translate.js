@@ -102,6 +102,41 @@
     return null;
   }
 
+  function ensureToolbar(entryEl) {
+    if (!entryEl) return;
+    if (entryEl.querySelector('.translate-cn-toolbar')) return;
+
+    var container = findContentContainer(entryEl);
+    if (!container) return;
+
+    var entryId = entryEl.dataset.entry || entryEl.getAttribute('data-entry') || entryEl.id || '';
+    var toolbar = document.createElement('div');
+    toolbar.className = 'translate-cn-toolbar';
+    toolbar.dataset.entryId = entryId;
+    toolbar.dataset.translateEndpoint = '?c=TranslateCn&a=translate';
+    toolbar.dataset.summaryEndpoint = '?c=TranslateCn&a=summary';
+    toolbar.innerHTML =
+      '<button class="translate-cn-button" type="button">Translate</button>' +
+      '<button class="translate-cn-summary-button" type="button">Summary</button>' +
+      '<span class="translate-cn-status" aria-live="polite"></span>';
+
+    var translateResult = document.createElement('div');
+    translateResult.className = 'translate-cn-result translate-cn-result-translate';
+    translateResult.dataset.entryId = entryId;
+    translateResult.dataset.resultType = 'translate';
+    translateResult.hidden = true;
+
+    var summaryResult = document.createElement('div');
+    summaryResult.className = 'translate-cn-result translate-cn-result-summary';
+    summaryResult.dataset.entryId = entryId;
+    summaryResult.dataset.resultType = 'summary';
+    summaryResult.hidden = true;
+
+    container.insertBefore(toolbar, container.firstChild);
+    container.insertBefore(translateResult, toolbar.nextSibling);
+    container.insertBefore(summaryResult, translateResult.nextSibling);
+  }
+
   function setStatus(statusEl, message, state) {
     if (!statusEl) return;
     statusEl.textContent = message || '';
@@ -205,6 +240,10 @@
   function bind() {
     if (isBound) return;
     isBound = true;
+    var entries = document.querySelectorAll('.flux, .entry');
+    for (var i = 0; i < entries.length; i++) {
+      ensureToolbar(entries[i]);
+    }
     document.body.addEventListener('click', handleClick);
   }
 
@@ -212,6 +251,10 @@
 
   document.addEventListener('freshrss:globalContextLoaded', function () {
     // Ensure new entries loaded dynamically also work with the same handler.
+    var entries = document.querySelectorAll('.flux, .entry');
+    for (var i = 0; i < entries.length; i++) {
+      ensureToolbar(entries[i]);
+    }
     bind();
   });
 })();
