@@ -1,5 +1,6 @@
 (function () {
   var isBound = false;
+  var observer = null;
   function ready(fn) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fn);
@@ -137,6 +138,17 @@
     container.insertBefore(summaryResult, translateResult.nextSibling);
   }
 
+  function ensureToolbarsIn(root) {
+    if (!root || !root.querySelectorAll) return;
+    if (root.matches && (root.matches('.flux') || root.matches('.entry'))) {
+      ensureToolbar(root);
+    }
+    var entries = root.querySelectorAll('.flux, .entry');
+    for (var i = 0; i < entries.length; i++) {
+      ensureToolbar(entries[i]);
+    }
+  }
+
   function setStatus(statusEl, message, state) {
     if (!statusEl) return;
     statusEl.textContent = message || '';
@@ -184,6 +196,7 @@
     var payload = { content_html: contentHtml, ajax: true };
     var csrf = getCsrfToken();
     if (!csrf) {
+      button.dataset.loading = '';
       setStatus(statusEl, 'Missing CSRF token.', 'error');
       return;
     }
@@ -245,6 +258,19 @@
       ensureToolbar(entries[i]);
     }
     document.body.addEventListener('click', handleClick);
+
+    var streamRoot = document.getElementById('global') || document.body;
+    observer = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          var node = added[j];
+          if (!node || node.nodeType !== 1) continue;
+          ensureToolbarsIn(node);
+        }
+      }
+    });
+    observer.observe(streamRoot, { childList: true, subtree: true });
   }
 
   ready(bind);
