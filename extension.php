@@ -19,11 +19,11 @@ final class TranslateSummaryExtension extends Minz_Extension {
 
     public function handleConfigureAction(): void {
         if (Minz_Request::isPost()) {
-            $baseUrl = trim((string) Minz_Request::param('api_base_url', ''));
-            $apiKey = trim((string) Minz_Request::param('api_key', ''));
-            $model = trim((string) Minz_Request::param('model', ''));
-            $translatePrompt = trim((string) Minz_Request::param('translate_prompt', ''));
-            $summaryPrompt = trim((string) Minz_Request::param('summary_prompt', ''));
+            $baseUrl = trim(Minz_Request::paramString('api_base_url', true));
+            $apiKey = trim(Minz_Request::paramString('api_key', true));
+            $model = trim(Minz_Request::paramString('model', true));
+            $translatePrompt = trim(Minz_Request::paramString('translate_prompt', true));
+            $summaryPrompt = trim(Minz_Request::paramString('summary_prompt', true));
 
             $config = [
                 'api_base_url' => $baseUrl,
@@ -43,6 +43,10 @@ final class TranslateSummaryExtension extends Minz_Extension {
         return $entry;
     }
 
+    /**
+     * @param array<string,mixed> $vars
+     * @return array<string,mixed>
+     */
     public function injectJsVars(array $vars): array {
         $vars['translateCn'] = [
             'endpoint' => '?c=TranslateSummary&a=translate',
@@ -92,132 +96,43 @@ final class TranslateSummaryExtension extends Minz_Extension {
         return $prompt;
     }
 
-    private function getEntryContent(FreshRSS_Entry $entry): ?string {
-        if (method_exists($entry, 'content')) {
-            return (string) $entry->content();
-        }
-
-        if (method_exists($entry, '_content')) {
-            return (string) $entry->_content();
-        }
-
-        return null;
-    }
-
-    private function setEntryContent(FreshRSS_Entry $entry, string $content): void {
-        if (method_exists($entry, '_content')) {
-            $entry->_content($content);
-            return;
-        }
-
-        if (method_exists($entry, 'setContent')) {
-            $entry->setContent($content);
-            return;
-        }
-
-        if (property_exists($entry, 'content')) {
-            $entry->content = $content;
-        }
-    }
-
     private function setFlashNotice(string $message): void {
-        if (class_exists('Minz_Session') && method_exists('Minz_Session', 'setFlashNotice')) {
-            Minz_Session::setFlashNotice($message);
-            return;
-        }
-
-        if (class_exists('Minz_Session') && method_exists('Minz_Session', 'set')) {
-            Minz_Session::set('notice', $message);
-            return;
-        }
-
-        if (function_exists('Minz_Request::param')) {
-            // No-op fallback for older versions without flash support.
-        }
+        Minz_Session::_param('notice', $message);
     }
 
     private function getCsrfToken(): string {
-        if (class_exists('FreshRSS_Context') && method_exists('FreshRSS_Context', 'csrf')) {
-            return (string) FreshRSS_Context::csrf();
+        if (!class_exists('FreshRSS_Context', false) || !FreshRSS_Context::hasSystemConf()) {
+            return '';
         }
 
-        if (class_exists('Minz_Session') && method_exists('Minz_Session', 'param')) {
-            return (string) Minz_Session::param('csrf');
+        $token = FreshRSS_Context::systemConf()->token;
+        if (is_string($token)) {
+            return $token;
         }
-
-        if (class_exists('Minz_Session') && method_exists('Minz_Session', 'get')) {
-            return (string) Minz_Session::get('csrf');
+        if (is_int($token) || is_float($token) || is_bool($token)) {
+            return (string) $token;
         }
 
         return '';
     }
 
     public function getConfigValue(string $key, string $default = ''): string {
-        if (method_exists($this, 'getUserConfigurationValue')) {
-            $value = (string) $this->getUserConfigurationValue($key);
-            return $value !== '' ? $value : $default;
+        $value = $this->getUserConfigurationValue($key, $default);
+        if (is_string($value) || is_int($value) || is_bool($value)) {
+            $valueString = (string) $value;
+            return $valueString !== '' ? $valueString : $default;
         }
-
-        if (method_exists($this, 'getUserConfiguration')) {
-            $params = $this->getMethodParamCount('getUserConfiguration');
-            if ($params === 0) {
-                $all = $this->getUserConfiguration();
-                if (is_array($all) && array_key_exists($key, $all)) {
-                    $value = (string) $all[$key];
-                    return $value !== '' ? $value : $default;
-                }
-            } else {
-                $value = (string) $this->getUserConfiguration($key);
-                return $value !== '' ? $value : $default;
-            }
-        }
-
-        if (method_exists($this, 'getConfigurationValue')) {
-            $value = (string) $this->getConfigurationValue($key);
-            return $value !== '' ? $value : $default;
-        }
-
         return $default;
     }
 
+    /** @param array<string,mixed> $values */
     public function setConfigValues(array $values): void {
-        if (method_exists($this, 'setUserConfigurationValue')) {
-            foreach ($values as $key => $value) {
-                $this->setUserConfigurationValue($key, (string) $value);
-            }
-            return;
-        }
-
-        if (method_exists($this, 'setUserConfigurationValues')) {
-            $this->setUserConfigurationValues($values);
-            return;
-        }
-
-        if (method_exists($this, 'setUserConfiguration')) {
-            $params = $this->getMethodParamCount('setUserConfiguration');
-            if ($params <= 1) {
-                $this->setUserConfiguration($values);
-            } else {
-                foreach ($values as $key => $value) {
-                    $this->setUserConfiguration($key, (string) $value);
-                }
-            }
-            return;
-        }
-
-        if (method_exists($this, 'setConfigurationValue')) {
-            foreach ($values as $key => $value) {
-                $this->setConfigurationValue($key, (string) $value);
+        $current = $this->getUserConfiguration();
+        foreach ($values as $key => $value) {
+            if (is_string($value) || is_int($value) || is_bool($value)) {
+                $current[$key] = (string) $value;
             }
         }
-    }
-
-    private function getMethodParamCount(string $method): int {
-        try {
-            $reflection = new ReflectionMethod($this, $method);
-            return $reflection->getNumberOfParameters();
-        } catch (ReflectionException $exception) {
-            return 0;
-        }
+        $this->setUserConfiguration($current);
     }
 }
