@@ -117,8 +117,8 @@
     toolbar.dataset.translateEndpoint = '?c=TranslateSummary&a=translate';
     toolbar.dataset.summaryEndpoint = '?c=TranslateSummary&a=summary';
     toolbar.innerHTML =
-      '<button class="translate-cn-button" type="button">Translate</button>' +
-      '<button class="translate-cn-summary-button" type="button">Summary</button>' +
+      '<button class="btn translate-cn-button" type="button">Translate</button>' +
+      '<button class="btn translate-cn-summary-button" type="button">Summary</button>' +
       '<span class="translate-cn-status" aria-live="polite"></span>';
 
     var translateResult = document.createElement('div');
