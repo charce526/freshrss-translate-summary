@@ -4,22 +4,21 @@ declare(strict_types=1);
 
 final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionController {
     public function translateAction(): void {
-        $extension = Minz_ExtensionManager::findExtension('freshrss-translate-summary');
-        if (!$extension instanceof TranslateSummaryExtension) {
-            $this->sendJson(['ok' => false, 'error' => 'Extension not available.'], 500);
+        $extension = $this->getExtension();
+        if ($extension === null) {
+            $this->sendJson(['ok' => false, 'error' => '翻译与摘要扩展当前不可用，请确认扩展已经启用。'], 500);
             return;
         }
 
         $apiKey = $extension->getApiKey();
         if ($apiKey === '') {
-            $this->sendJson(['ok' => false, 'error' => 'API key is not configured.'], 400);
+            $this->sendJson(['ok' => false, 'error' => '尚未配置 API 密钥。'], 400);
             return;
         }
 
-        $payload = $this->getRequestPayload();
-        $content = $this->payloadString($payload, 'content_html');
-        if ($content === '') {
-            $this->sendJson(['ok' => false, 'error' => 'Content is empty.'], 400);
+        $content = Minz_Request::paramString('content_html', true);
+        if (trim($content) === '') {
+            $this->sendJson(['ok' => false, 'error' => '文章内容为空。'], 400);
             return;
         }
 
@@ -40,22 +39,21 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
     }
 
     public function summaryAction(): void {
-        $extension = Minz_ExtensionManager::findExtension('freshrss-translate-summary');
-        if (!$extension instanceof TranslateSummaryExtension) {
-            $this->sendJson(['ok' => false, 'error' => 'Extension not available.'], 500);
+        $extension = $this->getExtension();
+        if ($extension === null) {
+            $this->sendJson(['ok' => false, 'error' => '翻译与摘要扩展当前不可用，请确认扩展已经启用。'], 500);
             return;
         }
 
         $apiKey = $extension->getApiKey();
         if ($apiKey === '') {
-            $this->sendJson(['ok' => false, 'error' => 'API key is not configured.'], 400);
+            $this->sendJson(['ok' => false, 'error' => '尚未配置 API 密钥。'], 400);
             return;
         }
 
-        $payload = $this->getRequestPayload();
-        $content = $this->payloadString($payload, 'content_html');
-        if ($content === '') {
-            $this->sendJson(['ok' => false, 'error' => 'Content is empty.'], 400);
+        $content = Minz_Request::paramString('content_html', true);
+        if (trim($content) === '') {
+            $this->sendJson(['ok' => false, 'error' => '文章内容为空。'], 400);
             return;
         }
 
@@ -75,23 +73,14 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
         $this->sendJson(['ok' => true, 'translated_html' => $result['translated_html']]);
     }
 
-    /** @return array<string,mixed> */
-    private function getRequestPayload(): array {
-        $raw = file_get_contents('php://input');
-        $decoded = is_string($raw) ? json_decode($raw, true) : null;
-        if (is_array($decoded)) {
-            $payload = [];
-            foreach ($decoded as $key => $value) {
-                if (is_string($key)) {
-                    $payload[$key] = $value;
-                }
+    private function getExtension(): ?TranslateSummaryExtension {
+        foreach (Minz_ExtensionManager::listExtensions(true) as $extension) {
+            if ($extension instanceof TranslateSummaryExtension) {
+                return $extension;
             }
-            return $payload;
         }
 
-        return [
-            'content_html' => Minz_Request::paramString('content_html', true),
-        ];
+        return null;
     }
 
     /**
@@ -99,7 +88,7 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
      */
     private function requestCompletion(string $baseUrl, string $apiKey, string $model, string $prompt, string $content): array {
         $endpoint = rtrim($baseUrl, '/') . '/chat/completions';
-        $body = [
+        $bodyJson = json_encode([
             'model' => $model,
             'temperature' => 0.2,
             'messages' => [
@@ -112,15 +101,15 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
                     'content' => $content,
                 ],
             ],
-        ];
-        $bodyJson = json_encode($body);
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
         if (!is_string($bodyJson)) {
-            return ['ok' => false, 'error' => 'Unable to encode request body.', 'status' => 500];
+            return ['ok' => false, 'error' => '无法生成 API 请求内容。', 'status' => 500];
         }
 
         $ch = curl_init($endpoint);
         if ($ch === false) {
-            return ['ok' => false, 'error' => 'Unable to initialize request.', 'status' => 500];
+            return ['ok' => false, 'error' => '无法初始化 API 请求。', 'status' => 500];
         }
 
         curl_setopt_array($ch, [
@@ -137,17 +126,20 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
 
         $response = curl_exec($ch);
         $curlError = curl_error($ch);
-        $statusCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $statusCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if ($response === false) {
-            $error = $curlError !== '' ? $curlError : 'Request failed.';
-            return ['ok' => false, 'error' => $error, 'status' => 502];
+            return [
+                'ok' => false,
+                'error' => $curlError !== '' ? 'API 请求失败：' . $curlError : 'API 请求失败。',
+                'status' => 502,
+            ];
         }
 
-        $decoded = json_decode((string) $response, true);
+        $decoded = json_decode((string)$response, true);
         if (!is_array($decoded)) {
-            return ['ok' => false, 'error' => 'Invalid API response.', 'status' => 502];
+            return ['ok' => false, 'error' => 'API 返回了无法解析的响应。', 'status' => 502];
         }
 
         if (
@@ -155,24 +147,16 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
             is_array($decoded['error']) &&
             is_string($decoded['error']['message'] ?? null)
         ) {
-            $message = $decoded['error']['message'];
-            return ['ok' => false, 'error' => $message, 'status' => $statusCode > 0 ? $statusCode : 502];
+            return [
+                'ok' => false,
+                'error' => $decoded['error']['message'],
+                'status' => $statusCode > 0 ? $statusCode : 502,
+            ];
         }
 
-        $translated = '';
-        if (
-            isset($decoded['choices']) &&
-            is_array($decoded['choices']) &&
-            isset($decoded['choices'][0]) &&
-            is_array($decoded['choices'][0]) &&
-            isset($decoded['choices'][0]['message']) &&
-            is_array($decoded['choices'][0]['message']) &&
-            is_string($decoded['choices'][0]['message']['content'] ?? null)
-        ) {
-            $translated = $decoded['choices'][0]['message']['content'];
-        }
-        if (trim($translated) === '') {
-            return ['ok' => false, 'error' => 'Empty translation response.', 'status' => 502];
+        $translated = $decoded['choices'][0]['message']['content'] ?? '';
+        if (!is_string($translated) || trim($translated) === '') {
+            return ['ok' => false, 'error' => 'API 返回的翻译或摘要内容为空。', 'status' => 502];
         }
 
         return ['ok' => true, 'translated_html' => $translated];
@@ -187,19 +171,9 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
         $this->view->_layout(null);
         http_response_code($status);
         header('Content-Type: application/json; charset=UTF-8');
-        $json = json_encode($payload);
-        echo is_string($json) ? $json : '{"ok":false,"error":"Encoding failed."}';
-        exit;
-    }
 
-    /**
-     * @param array<string,mixed> $payload
-     */
-    private function payloadString(array $payload, string $key): string {
-        $value = $payload[$key] ?? '';
-        if (is_string($value) || is_int($value) || is_bool($value)) {
-            return trim((string) $value);
-        }
-        return '';
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        echo is_string($json) ? $json : '{"ok":false,"error":"响应编码失败。"}';
+        exit;
     }
 }
