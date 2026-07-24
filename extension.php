@@ -6,7 +6,7 @@ final class TranslateSummaryExtension extends Minz_Extension {
     private const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     private const DEFAULT_MODEL = 'gpt-3.5-turbo';
     private const DEFAULT_TRANSLATE_PROMPT = '请将以下内容翻译为中文，并尽可能保留原有 HTML 结构。';
-    private const DEFAULT_SUMMARY_PROMPT = '请使用中文简明总结以下内容，提炼关键要点。';
+    private const DEFAULT_SUMMARY_PROMPT = '请使用中文简明总结以下内容，提炼关键功能、新增内容、修复问题和重要变更。仅返回可直接插入网页的 HTML 片段，不要使用 Markdown，不要输出代码围栏、星号粗体、井号标题或 Markdown 列表标记；不要输出 html、head、body 标签。使用 p、h3、ul、li、strong、code 等 HTML 标签组织内容，只输出最终摘要，不要解释输出格式。';
 
     public function init(): void {
         $this->registerHook('entry_before_display', [$this, 'injectTranslateUi']);
