@@ -5,8 +5,8 @@ declare(strict_types=1);
 final class TranslateSummaryExtension extends Minz_Extension {
     private const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     private const DEFAULT_MODEL = 'gpt-3.5-turbo';
-    private const DEFAULT_TRANSLATE_PROMPT = 'Translate the following text into Chinese, maintaining the original HTML structure where possible.';
-    private const DEFAULT_SUMMARY_PROMPT = 'Summarize the following text in Chinese with key points, keeping it concise.';
+    private const DEFAULT_TRANSLATE_PROMPT = '请将以下内容翻译为中文，并尽可能保留原有 HTML 结构。';
+    private const DEFAULT_SUMMARY_PROMPT = '请使用中文简明总结以下内容，提炼关键要点。';
 
     public function init(): void {
         $this->registerHook('entry_before_display', [$this, 'injectTranslateUi']);
@@ -18,25 +18,20 @@ final class TranslateSummaryExtension extends Minz_Extension {
     }
 
     public function handleConfigureAction(): void {
-        if (Minz_Request::isPost()) {
-            $baseUrl = trim(Minz_Request::paramString('api_base_url', true));
-            $apiKey = trim(Minz_Request::paramString('api_key', true));
-            $model = trim(Minz_Request::paramString('model', true));
-            $translatePrompt = trim(Minz_Request::paramString('translate_prompt', true));
-            $summaryPrompt = trim(Minz_Request::paramString('summary_prompt', true));
-
-            $config = [
-                'api_base_url' => $baseUrl,
-                'api_key' => $apiKey,
-                'model' => $model,
-                'translate_prompt' => $translatePrompt,
-                'summary_prompt' => $summaryPrompt,
-            ];
-
-            $this->setConfigValues($config);
-
-            $this->setFlashNotice('Translation settings saved.');
+        if (!Minz_Request::isPost()) {
+            return;
         }
+
+        $config = [
+            'api_base_url' => trim(Minz_Request::paramString('api_base_url', true)),
+            'api_key' => trim(Minz_Request::paramString('api_key', true)),
+            'model' => trim(Minz_Request::paramString('model', true)),
+            'translate_prompt' => trim(Minz_Request::paramString('translate_prompt', true)),
+            'summary_prompt' => trim(Minz_Request::paramString('summary_prompt', true)),
+        ];
+
+        $this->setConfigValues($config);
+        Minz_Session::_param('notice', '翻译与摘要设置已保存。');
     }
 
     public function injectTranslateUi(FreshRSS_Entry $entry): FreshRSS_Entry {
@@ -50,19 +45,14 @@ final class TranslateSummaryExtension extends Minz_Extension {
     public function injectJsVars(array $vars): array {
         $vars['translateCn'] = [
             'endpoint' => '?c=TranslateSummary&a=translate',
-            'csrf' => $this->getCsrfToken(),
+            'csrf' => FreshRSS_Auth::csrfToken(),
         ];
 
         return $vars;
     }
 
     public function getBaseUrl(): string {
-        $baseUrl = $this->getConfigValue('api_base_url');
-        if ($baseUrl === '') {
-            $baseUrl = self::DEFAULT_BASE_URL;
-        }
-
-        return rtrim($baseUrl, '/');
+        return rtrim($this->getConfigValue('api_base_url', self::DEFAULT_BASE_URL), '/');
     }
 
     public function getApiKey(): string {
@@ -70,50 +60,15 @@ final class TranslateSummaryExtension extends Minz_Extension {
     }
 
     public function getModel(): string {
-        $model = $this->getConfigValue('model');
-        if ($model === '') {
-            $model = self::DEFAULT_MODEL;
-        }
-
-        return $model;
+        return $this->getConfigValue('model', self::DEFAULT_MODEL);
     }
 
     public function getTranslatePrompt(): string {
-        $prompt = $this->getConfigValue('translate_prompt');
-        if ($prompt === '') {
-            $prompt = self::DEFAULT_TRANSLATE_PROMPT;
-        }
-
-        return $prompt;
+        return $this->getConfigValue('translate_prompt', self::DEFAULT_TRANSLATE_PROMPT);
     }
 
     public function getSummaryPrompt(): string {
-        $prompt = $this->getConfigValue('summary_prompt');
-        if ($prompt === '') {
-            $prompt = self::DEFAULT_SUMMARY_PROMPT;
-        }
-
-        return $prompt;
-    }
-
-    private function setFlashNotice(string $message): void {
-        Minz_Session::_param('notice', $message);
-    }
-
-    private function getCsrfToken(): string {
-        if (!class_exists('FreshRSS_Context', false) || !FreshRSS_Context::hasSystemConf()) {
-            return '';
-        }
-
-        $token = FreshRSS_Context::systemConf()->token;
-        if (is_string($token)) {
-            return $token;
-        }
-        if (is_int($token) || is_float($token) || is_bool($token)) {
-            return (string) $token;
-        }
-
-        return '';
+        return $this->getConfigValue('summary_prompt', self::DEFAULT_SUMMARY_PROMPT);
     }
 
     public function getConfigValue(string $key, string $default = ''): string {
@@ -122,6 +77,7 @@ final class TranslateSummaryExtension extends Minz_Extension {
             $valueString = (string) $value;
             return $valueString !== '' ? $valueString : $default;
         }
+
         return $default;
     }
 
@@ -133,6 +89,7 @@ final class TranslateSummaryExtension extends Minz_Extension {
                 $current[$key] = (string) $value;
             }
         }
+
         $this->setUserConfiguration($current);
     }
 }
