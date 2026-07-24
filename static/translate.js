@@ -1,57 +1,49 @@
 (function () {
+  'use strict';
+
   var isBound = false;
   var observer = null;
-  function ready(fn) {
+
+  function ready(callback) {
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', fn);
+      document.addEventListener('DOMContentLoaded', callback);
     } else {
-      fn();
+      callback();
     }
   }
 
   function getEndpoint(toolbar, action) {
-    if (toolbar && toolbar.dataset.translateEndpoint) {
+    if (toolbar) {
       if (action === 'summary' && toolbar.dataset.summaryEndpoint) {
         return toolbar.dataset.summaryEndpoint;
       }
-      if (action === 'translate') {
+      if (action === 'translate' && toolbar.dataset.translateEndpoint) {
         return toolbar.dataset.translateEndpoint;
       }
     }
 
-    if (window.extensions && window.extensions.translateCn && window.extensions.translateCn.endpoint) {
-      return window.extensions.translateCn.endpoint;
-    }
-
-    if (window.context && window.context.translateCn && window.context.translateCn.endpoint) {
-      return window.context.translateCn.endpoint;
-    }
-
-      return '?c=TranslateSummary&a=translate';
+    return action === 'summary'
+      ? '?c=TranslateSummary&a=summary'
+      : '?c=TranslateSummary&a=translate';
   }
 
   function getCsrfToken() {
     if (typeof context !== 'undefined' && context && context.csrf) {
       return context.csrf;
     }
-
     if (window.context && window.context.csrf) {
       return window.context.csrf;
     }
-
     if (window.extensions && window.extensions.translateCn && window.extensions.translateCn.csrf) {
       return window.extensions.translateCn.csrf;
     }
 
     var input = document.querySelector('input[name="_csrf"]');
-    if (input && input.value) {
-      return input.value;
-    }
-    return '';
+    return input && input.value ? input.value : '';
   }
 
-  function findEntryContent(entryEl) {
-    if (!entryEl) return null;
+  function findContentContainer(entryElement) {
+    if (!entryElement) return null;
 
     var selectors = [
       '.text',
@@ -65,67 +57,49 @@
       '.flux_content',
       'article'
     ];
-    var contentEl = null;
-    for (var i = 0; i < selectors.length; i++) {
-      contentEl = entryEl.querySelector(selectors[i]);
-      if (contentEl) break;
+
+    for (var i = 0; i < selectors.length; i += 1) {
+      var element = entryElement.querySelector(selectors[i]);
+      if (element) return element;
     }
 
-    if (!contentEl) return null;
+    return null;
+  }
 
-    var clone = contentEl.cloneNode(true);
-    var toolbar = clone.querySelector('.translate-cn-toolbar');
-    if (toolbar) toolbar.remove();
-    var result = clone.querySelector('.translate-cn-result');
-    if (result) result.remove();
+  function findEntryContent(entryElement) {
+    var contentElement = findContentContainer(entryElement);
+    if (!contentElement) return '';
+
+    var clone = contentElement.cloneNode(true);
+    clone.querySelectorAll('.translate-cn-toolbar, .translate-cn-result').forEach(function (element) {
+      element.remove();
+    });
 
     return clone.innerHTML.trim();
   }
 
-  function findContentContainer(entryEl) {
-    if (!entryEl) return null;
-    var selectors = [
-      '.text',
-      '.content',
-      '.entry-content',
-      '.entry_content',
-      '.item-content',
-      '.item-content-body',
-      '.article',
-      '.flux_content .text',
-      '.flux_content',
-      'article'
-    ];
-    for (var i = 0; i < selectors.length; i++) {
-      var el = entryEl.querySelector(selectors[i]);
-      if (el) return el;
-    }
-    return null;
-  }
+  function ensureToolbar(entryElement) {
+    if (!entryElement || entryElement.querySelector('.translate-cn-toolbar')) return;
 
-  function ensureToolbar(entryEl) {
-    if (!entryEl) return;
-    if (entryEl.querySelector('.translate-cn-toolbar')) return;
-
-    var container = findContentContainer(entryEl);
+    var container = findContentContainer(entryElement);
     if (!container) return;
 
-    var entryId = entryEl.dataset.entry || entryEl.getAttribute('data-entry') || entryEl.id || '';
+    var entryId = entryElement.dataset.entry || entryElement.getAttribute('data-entry') || entryElement.id || '';
     var toolbar = document.createElement('div');
     toolbar.className = 'translate-cn-toolbar';
     toolbar.dataset.entryId = entryId;
     toolbar.dataset.translateEndpoint = '?c=TranslateSummary&a=translate';
     toolbar.dataset.summaryEndpoint = '?c=TranslateSummary&a=summary';
     toolbar.innerHTML =
-      '<button class="btn translate-cn-button" type="button">Translate</button>' +
-      '<button class="btn translate-cn-summary-button" type="button">Summary</button>' +
+      '<button class="btn translate-cn-button" type="button">翻译</button>' +
+      '<button class="btn translate-cn-summary-button" type="button">摘要</button>' +
       '<span class="translate-cn-status" aria-live="polite"></span>';
 
-    var translateResult = document.createElement('div');
-    translateResult.className = 'translate-cn-result translate-cn-result-translate';
-    translateResult.dataset.entryId = entryId;
-    translateResult.dataset.resultType = 'translate';
-    translateResult.hidden = true;
+    var translationResult = document.createElement('div');
+    translationResult.className = 'translate-cn-result translate-cn-result-translate';
+    translationResult.dataset.entryId = entryId;
+    translationResult.dataset.resultType = 'translate';
+    translationResult.hidden = true;
 
     var summaryResult = document.createElement('div');
     summaryResult.className = 'translate-cn-result translate-cn-result-summary';
@@ -134,25 +108,55 @@
     summaryResult.hidden = true;
 
     container.insertBefore(toolbar, container.firstChild);
-    container.insertBefore(translateResult, toolbar.nextSibling);
-    container.insertBefore(summaryResult, translateResult.nextSibling);
+    container.insertBefore(translationResult, toolbar.nextSibling);
+    container.insertBefore(summaryResult, translationResult.nextSibling);
   }
 
-  function ensureToolbarsIn(root) {
+  function ensureToolbars(root) {
     if (!root || !root.querySelectorAll) return;
+
     if (root.matches && (root.matches('.flux') || root.matches('.entry'))) {
       ensureToolbar(root);
     }
-    var entries = root.querySelectorAll('.flux, .entry');
-    for (var i = 0; i < entries.length; i++) {
-      ensureToolbar(entries[i]);
-    }
+
+    root.querySelectorAll('.flux, .entry').forEach(ensureToolbar);
   }
 
-  function setStatus(statusEl, message, state) {
-    if (!statusEl) return;
-    statusEl.textContent = message || '';
-    statusEl.dataset.state = state || '';
+  function setStatus(element, message, state) {
+    if (!element) return;
+    element.textContent = message || '';
+    element.dataset.state = state || '';
+  }
+
+  function parseResponse(response) {
+    var contentType = response.headers.get('Content-Type') || '';
+    if (contentType.indexOf('application/json') === -1) {
+      throw new Error(response.status === 403 ? '请求被拒绝，请刷新页面后重试。' : '服务器返回了无法识别的响应。');
+    }
+
+    return response.json().then(function (data) {
+      if (!response.ok || !data || !data.ok) {
+        throw new Error(data && data.error ? data.error : '请求失败。');
+      }
+      return data;
+    });
+  }
+
+  function requestAction(endpoint, contentHtml, csrfToken) {
+    var formData = new URLSearchParams();
+    formData.set('content_html', contentHtml);
+    formData.set('ajax', '1');
+    formData.set('_csrf', csrfToken);
+
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      credentials: 'same-origin',
+      body: formData.toString()
+    }).then(parseResponse);
   }
 
   function handleClick(event) {
@@ -160,127 +164,74 @@
     if (!button) return;
 
     var toolbar = button.closest('.translate-cn-toolbar');
-    if (!toolbar) return;
+    var entryElement = button.closest('.entry') || button.closest('.flux');
+    if (!toolbar || !entryElement || button.dataset.loading === '1') return;
 
-    var entryEl = button.closest('.entry') || button.closest('.flux');
-    var statusEl = toolbar.querySelector('.translate-cn-status');
-    var action = button.classList.contains('translate-cn-summary-button') ? 'summary' : 'translate';
-    var resultSelector = '.translate-cn-result[data-entry-id="' + toolbar.dataset.entryId + '"][data-result-type="' + action + '"]';
-    var resultEl = entryEl ? entryEl.querySelector(resultSelector) : null;
-    if (!resultEl && action === 'translate' && entryEl) {
-      var legacyEl = entryEl.querySelector('.translate-cn-result[data-entry-id="' + toolbar.dataset.entryId + '"]:not([data-result-type])');
-      if (legacyEl) {
-        legacyEl.dataset.resultType = 'translate';
-        resultEl = legacyEl;
-      }
-    }
+    var isSummary = button.classList.contains('translate-cn-summary-button');
+    var action = isSummary ? 'summary' : 'translate';
+    var statusElement = toolbar.querySelector('.translate-cn-status');
+    var resultElement = entryElement.querySelector(
+      '.translate-cn-result[data-entry-id="' + toolbar.dataset.entryId + '"][data-result-type="' + action + '"]'
+    );
 
-    if (button.dataset.loading === '1') {
+    if (resultElement && resultElement.dataset.state === 'done') {
+      resultElement.hidden = !resultElement.hidden;
       return;
     }
 
-    if (resultEl && (resultEl.dataset.state === 'done' || resultEl.innerHTML.trim() !== '')) {
-      resultEl.hidden = !resultEl.hidden;
-      return;
-    }
-
-    var contentHtml = findEntryContent(entryEl);
+    var contentHtml = findEntryContent(entryElement);
     if (!contentHtml) {
-      setStatus(statusEl, action === 'summary' ? 'No content to summarize.' : 'No content to translate.', 'error');
+      setStatus(statusElement, isSummary ? '没有可生成摘要的内容。' : '没有可翻译的内容。', 'error');
+      return;
+    }
+
+    var csrfToken = getCsrfToken();
+    if (!csrfToken) {
+      setStatus(statusElement, '缺少 CSRF 令牌，请刷新页面后重试。', 'error');
       return;
     }
 
     button.dataset.loading = '1';
-    setStatus(statusEl, action === 'summary' ? 'Summarizing...' : 'Translating...', 'loading');
+    setStatus(statusElement, isSummary ? '正在生成摘要…' : '正在翻译…', 'loading');
 
-    var payload = { content_html: contentHtml, ajax: true };
-    var csrf = getCsrfToken();
-    if (!csrf) {
-      button.dataset.loading = '';
-      setStatus(statusEl, 'Missing CSRF token.', 'error');
-      return;
-    }
-    payload._csrf = csrf;
-    payload.csrf = csrf;
-
-    fetch(getEndpoint(toolbar, action), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify(payload)
-    }).then(function (response) {
-      var contentType = response.headers.get('Content-Type') || '';
-      if (contentType.indexOf('application/json') === -1) {
-        return response.text().then(function (text) {
-          throw new Error('Unexpected response from server.');
-        });
-      }
-      return response.json().then(function (data) {
-        return { status: response.status, data: data };
+    requestAction(getEndpoint(toolbar, action), contentHtml, csrfToken)
+      .then(function (data) {
+        if (resultElement) {
+          resultElement.innerHTML = data.translated_html;
+          resultElement.hidden = false;
+          resultElement.dataset.state = 'done';
+        }
+        setStatus(statusElement, isSummary ? '摘要已生成。' : '翻译已完成。', 'done');
+      })
+      .catch(function (error) {
+        setStatus(statusElement, error.message || (isSummary ? '生成摘要失败。' : '翻译失败。'), 'error');
+      })
+      .finally(function () {
+        button.dataset.loading = '';
       });
-    }).then(function (payload) {
-      if (!payload.data || !payload.data.ok) {
-        var message = payload.data && payload.data.error ? payload.data.error : (action === 'summary' ? 'Summary failed.' : 'Translation failed.');
-        throw new Error(message);
-      }
-
-      if (!resultEl && entryEl) {
-        resultEl = document.createElement('div');
-        resultEl.className = 'translate-cn-result translate-cn-result-' + action;
-        resultEl.dataset.entryId = toolbar.dataset.entryId || '';
-        resultEl.dataset.resultType = action;
-        var container = findContentContainer(entryEl) || entryEl;
-        container.appendChild(resultEl);
-      }
-
-      if (resultEl) {
-        resultEl.innerHTML = payload.data.translated_html;
-        resultEl.hidden = false;
-        resultEl.dataset.state = 'done';
-      }
-
-      setStatus(statusEl, action === 'summary' ? 'Summary ready.' : 'Translation ready.', 'done');
-    }).catch(function (error) {
-      setStatus(statusEl, error.message || (action === 'summary' ? 'Summary failed.' : 'Translation failed.'), 'error');
-    }).finally(function () {
-      button.dataset.loading = '';
-    });
   }
 
   function bind() {
     if (isBound) return;
     isBound = true;
-    var entries = document.querySelectorAll('.flux, .entry');
-    for (var i = 0; i < entries.length; i++) {
-      ensureToolbar(entries[i]);
-    }
+
+    ensureToolbars(document);
     document.body.addEventListener('click', handleClick);
 
     var streamRoot = document.getElementById('global') || document.body;
     observer = new MutationObserver(function (mutations) {
-      for (var i = 0; i < mutations.length; i++) {
-        var added = mutations[i].addedNodes;
-        for (var j = 0; j < added.length; j++) {
-          var node = added[j];
-          if (!node || node.nodeType !== 1) continue;
-          ensureToolbarsIn(node);
-        }
-      }
+      mutations.forEach(function (mutation) {
+        mutation.addedNodes.forEach(function (node) {
+          if (node && node.nodeType === 1) ensureToolbars(node);
+        });
+      });
     });
     observer.observe(streamRoot, { childList: true, subtree: true });
   }
 
   ready(bind);
-
   document.addEventListener('freshrss:globalContextLoaded', function () {
-    // Ensure new entries loaded dynamically also work with the same handler.
-    var entries = document.querySelectorAll('.flux, .entry');
-    for (var i = 0; i < entries.length; i++) {
-      ensureToolbar(entries[i]);
-    }
+    ensureToolbars(document);
     bind();
   });
 })();
