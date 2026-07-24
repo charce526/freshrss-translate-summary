@@ -2,7 +2,7 @@
   "name": "FreshRSS 翻译与摘要",
   "author": "charce526",
   "description": "使用 OpenAI 兼容 API 将 FreshRSS 文章翻译为中文或生成中文摘要。",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "entrypoint": "TranslateSummary",
   "type": "user"
 }
