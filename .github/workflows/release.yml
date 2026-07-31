@@ -71,4 +71,4 @@ jobs:
             "freshrss-translate-summary-${VERSION}.zip" \
             --target "$GITHUB_SHA" \
             --title "FreshRSS 翻译与摘要 v${VERSION}" \
-            --notes "新增多 API 地址与多模型配置组，文章工具栏支持快速切换配置；保留旧配置自动迁移，并继续支持可配置的请求与连接超时。"
+            --notes "重构多 API 配置页面：新增、复制和删除配置改用 FreshRSS 原生服务端表单提交，彻底移除配置页对 JavaScript 的依赖；保留多模型切换、旧配置迁移和可配置超时功能。"
