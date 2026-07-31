@@ -4,52 +4,32 @@ declare(strict_types=1);
 
 final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionController {
     public function translateAction(): void {
-        $extension = $this->getExtension();
-        if ($extension === null) {
-            $this->sendJson(['ok' => false, 'error' => '翻译与摘要扩展当前不可用，请确认扩展已经启用。'], 500);
-            return;
-        }
-
-        $apiKey = $extension->getApiKey();
-        if ($apiKey === '') {
-            $this->sendJson(['ok' => false, 'error' => '尚未配置 API 密钥。'], 400);
-            return;
-        }
-
-        $content = Minz_Request::paramString('content_html', true);
-        if (trim($content) === '') {
-            $this->sendJson(['ok' => false, 'error' => '文章内容为空。'], 400);
-            return;
-        }
-
-        $result = $this->requestCompletion(
-            $extension->getBaseUrl(),
-            $apiKey,
-            $extension->getModel(),
-            $extension->getTranslatePrompt(),
-            $content,
-            $extension->getRequestTimeout(),
-            $extension->getConnectTimeout()
-        );
-
-        if (!$result['ok']) {
-            $this->sendJson(['ok' => false, 'error' => $result['error']], $result['status']);
-            return;
-        }
-
-        $this->sendJson(['ok' => true, 'translated_html' => $result['translated_html']]);
+        $this->handleAction('translate');
     }
 
     public function summaryAction(): void {
+        $this->handleAction('summary');
+    }
+
+    private function handleAction(string $action): void {
         $extension = $this->getExtension();
         if ($extension === null) {
             $this->sendJson(['ok' => false, 'error' => '翻译与摘要扩展当前不可用，请确认扩展已经启用。'], 500);
             return;
         }
 
-        $apiKey = $extension->getApiKey();
-        if ($apiKey === '') {
-            $this->sendJson(['ok' => false, 'error' => '尚未配置 API 密钥。'], 400);
+        $profileId = Minz_Request::paramString('profile_id', true);
+        $profile = $extension->getApiProfile($profileId);
+        if ($profile === null) {
+            $this->sendJson(['ok' => false, 'error' => '所选 API 配置不存在，请刷新页面后重试。'], 400);
+            return;
+        }
+        if ($profile['api_key'] === '') {
+            $this->sendJson(['ok' => false, 'error' => '所选配置尚未填写 API 密钥。'], 400);
+            return;
+        }
+        if ($profile['base_url'] === '' || $profile['model'] === '') {
+            $this->sendJson(['ok' => false, 'error' => '所选配置的 API 地址或模型名称不完整。'], 400);
             return;
         }
 
@@ -59,11 +39,15 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
             return;
         }
 
+        $prompt = $action === 'summary'
+            ? $extension->getSummaryPrompt()
+            : $extension->getTranslatePrompt();
+
         $result = $this->requestCompletion(
-            $extension->getBaseUrl(),
-            $apiKey,
-            $extension->getModel(),
-            $extension->getSummaryPrompt(),
+            $profile['base_url'],
+            $profile['api_key'],
+            $profile['model'],
+            $prompt,
             $content,
             $extension->getRequestTimeout(),
             $extension->getConnectTimeout()
@@ -74,7 +58,11 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
             return;
         }
 
-        $this->sendJson(['ok' => true, 'translated_html' => $result['translated_html']]);
+        $this->sendJson([
+            'ok' => true,
+            'translated_html' => $result['translated_html'],
+            'profile_id' => $profileId !== '' ? $profileId : '0',
+        ]);
     }
 
     private function getExtension(): ?TranslateSummaryExtension {
