@@ -121,6 +121,13 @@
   margin-bottom: 0.8rem;
 }
 
+.translate-cn-profile-card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .translate-cn-profile-remove:not(:disabled) {
   color: var(--translate-cn-danger);
 }
@@ -159,6 +166,10 @@
 
   .translate-cn-status {
     flex-basis: 100%;
+  }
+
+  .translate-cn-profile-card-header {
+    align-items: flex-start;
   }
 
   .translate-cn-profile-grid {
