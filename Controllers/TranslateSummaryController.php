@@ -27,7 +27,9 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
             $apiKey,
             $extension->getModel(),
             $extension->getTranslatePrompt(),
-            $content
+            $content,
+            $extension->getRequestTimeout(),
+            $extension->getConnectTimeout()
         );
 
         if (!$result['ok']) {
@@ -62,7 +64,9 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
             $apiKey,
             $extension->getModel(),
             $extension->getSummaryPrompt(),
-            $content
+            $content,
+            $extension->getRequestTimeout(),
+            $extension->getConnectTimeout()
         );
 
         if (!$result['ok']) {
@@ -86,7 +90,15 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
     /**
      * @return array{ok:true,translated_html:string}|array{ok:false,error:string,status:int}
      */
-    private function requestCompletion(string $baseUrl, string $apiKey, string $model, string $prompt, string $content): array {
+    private function requestCompletion(
+        string $baseUrl,
+        string $apiKey,
+        string $model,
+        string $prompt,
+        string $content,
+        int $requestTimeout,
+        int $connectTimeout
+    ): array {
         $endpoint = rtrim($baseUrl, '/') . '/chat/completions';
         $bodyJson = json_encode([
             'model' => $model,
@@ -120,8 +132,8 @@ final class FreshExtension_TranslateSummary_Controller extends FreshRSS_ActionCo
                 'Authorization: Bearer ' . $apiKey,
             ],
             CURLOPT_POSTFIELDS => $bodyJson,
-            CURLOPT_TIMEOUT => 60,
-            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => $requestTimeout,
+            CURLOPT_CONNECTTIMEOUT => $connectTimeout,
         ]);
 
         $response = curl_exec($ch);
