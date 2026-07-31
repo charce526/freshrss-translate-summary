@@ -71,4 +71,4 @@ jobs:
             "freshrss-translate-summary-${VERSION}.zip" \
             --target "$GITHUB_SHA" \
             --title "FreshRSS 翻译与摘要 v${VERSION}" \
-            --notes "修复 FreshRSS CSRF 403 问题，完成设置页、文章按钮及状态提示的中文化，并提供可直接安装的扩展压缩包。"
+            --notes "新增多 API 地址与多模型配置组，文章工具栏支持快速切换配置；保留旧配置自动迁移，并继续支持可配置的请求与连接超时。"
