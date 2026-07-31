@@ -7,6 +7,7 @@ final class TranslateSummaryExtension extends Minz_Extension {
     private const DEFAULT_MODEL = 'gpt-3.5-turbo';
     private const DEFAULT_REQUEST_TIMEOUT = 180;
     private const DEFAULT_CONNECT_TIMEOUT = 30;
+    private const MAX_API_PROFILES = 20;
     private const DEFAULT_TRANSLATE_PROMPT = '请将以下内容翻译为中文，并尽可能保留原有 HTML 结构。';
     private const DEFAULT_SUMMARY_PROMPT = '请使用中文简明总结以下内容，提炼关键功能、新增内容、修复问题和重要变更。仅返回可直接插入网页的 HTML 片段，不要使用 Markdown，不要输出代码围栏、星号粗体、井号标题或 Markdown 列表标记；不要输出 html、head、body 标签。使用 p、h3、ul、li、strong、code 等 HTML 标签组织内容，只输出最终摘要，不要解释输出格式。';
 
@@ -37,10 +38,23 @@ final class TranslateSummaryExtension extends Minz_Extension {
             120
         );
 
+        $profiles = $this->decodeApiProfiles(Minz_Request::paramString('api_profiles', true));
+        if ($profiles === []) {
+            $profiles = $this->getApiProfiles();
+        }
+
+        $firstProfile = $profiles[0];
+        $profilesJson = json_encode($profiles, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($profilesJson)) {
+            $profilesJson = '[]';
+        }
+
         $config = [
-            'api_base_url' => trim(Minz_Request::paramString('api_base_url', true)),
-            'api_key' => trim(Minz_Request::paramString('api_key', true)),
-            'model' => trim(Minz_Request::paramString('model', true)),
+            'api_profiles' => $profilesJson,
+            // Keep the first profile in the legacy fields for backward compatibility.
+            'api_base_url' => $firstProfile['base_url'],
+            'api_key' => $firstProfile['api_key'],
+            'model' => $firstProfile['model'],
             'request_timeout' => (string)$requestTimeout,
             'connect_timeout' => (string)$connectTimeout,
             'translate_prompt' => trim(Minz_Request::paramString('translate_prompt', true)),
@@ -61,23 +75,62 @@ final class TranslateSummaryExtension extends Minz_Extension {
      */
     public function injectJsVars(array $vars): array {
         $vars['translateCn'] = [
-            'endpoint' => '?c=TranslateSummary&a=translate',
+            'translateEndpoint' => '?c=TranslateSummary&a=translate',
+            'summaryEndpoint' => '?c=TranslateSummary&a=summary',
             'csrf' => FreshRSS_Auth::csrfToken(),
+            'profiles' => $this->getPublicApiProfiles(),
         ];
 
         return $vars;
     }
 
-    public function getBaseUrl(): string {
-        return rtrim($this->getConfigValue('api_base_url', self::DEFAULT_BASE_URL), '/');
+    /**
+     * @return list<array{name:string,base_url:string,api_key:string,model:string}>
+     */
+    public function getApiProfiles(): array {
+        $profiles = $this->decodeApiProfiles($this->getConfigValue('api_profiles'));
+        if ($profiles !== []) {
+            return $profiles;
+        }
+
+        return [[
+            'name' => '默认配置',
+            'base_url' => $this->getConfigValue('api_base_url', self::DEFAULT_BASE_URL),
+            'api_key' => $this->getConfigValue('api_key'),
+            'model' => $this->getConfigValue('model', self::DEFAULT_MODEL),
+        ]];
     }
 
-    public function getApiKey(): string {
-        return $this->getConfigValue('api_key');
+    /**
+     * @return list<array{id:string,name:string,model:string}>
+     */
+    public function getPublicApiProfiles(): array {
+        $publicProfiles = [];
+        foreach ($this->getApiProfiles() as $index => $profile) {
+            $publicProfiles[] = [
+                'id' => (string)$index,
+                'name' => $profile['name'] !== '' ? $profile['name'] : '配置 ' . ($index + 1),
+                'model' => $profile['model'],
+            ];
+        }
+
+        return $publicProfiles;
     }
 
-    public function getModel(): string {
-        return $this->getConfigValue('model', self::DEFAULT_MODEL);
+    /**
+     * @return array{name:string,base_url:string,api_key:string,model:string}|null
+     */
+    public function getApiProfile(string $profileId): ?array {
+        if ($profileId === '') {
+            $profileId = '0';
+        }
+        if (!ctype_digit($profileId)) {
+            return null;
+        }
+
+        $profiles = $this->getApiProfiles();
+        $index = (int)$profileId;
+        return $profiles[$index] ?? null;
     }
 
     public function getRequestTimeout(): int {
@@ -126,6 +179,60 @@ final class TranslateSummaryExtension extends Minz_Extension {
         }
 
         $this->setUserConfiguration($current);
+    }
+
+    /**
+     * @return list<array{name:string,base_url:string,api_key:string,model:string}>
+     */
+    private function decodeApiProfiles(string $profilesJson): array {
+        if ($profilesJson === '') {
+            return [];
+        }
+
+        $decoded = json_decode($profilesJson, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $profiles = [];
+        foreach (array_slice($decoded, 0, self::MAX_API_PROFILES) as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $baseUrl = $this->profileString($item, 'base_url', 2048);
+            $apiKey = $this->profileString($item, 'api_key', 4096);
+            $model = $this->profileString($item, 'model', 255);
+            $name = $this->profileString($item, 'name', 100);
+
+            if ($baseUrl === '' && $apiKey === '' && $model === '' && $name === '') {
+                continue;
+            }
+
+            $profiles[] = [
+                'name' => $name !== '' ? $name : '配置 ' . ($index + 1),
+                'base_url' => $baseUrl !== '' ? rtrim($baseUrl, '/') : self::DEFAULT_BASE_URL,
+                'api_key' => $apiKey,
+                'model' => $model !== '' ? $model : self::DEFAULT_MODEL,
+            ];
+        }
+
+        return $profiles;
+    }
+
+    /** @param array<mixed> $profile */
+    private function profileString(array $profile, string $key, int $maxLength): string {
+        $value = $profile[$key] ?? '';
+        if (!is_string($value) && !is_int($value) && !is_bool($value)) {
+            return '';
+        }
+
+        $value = trim((string)$value);
+        if (function_exists('mb_substr')) {
+            return mb_substr($value, 0, $maxLength, 'UTF-8');
+        }
+
+        return substr($value, 0, $maxLength);
     }
 
     private function normalizeTimeout(string $value, int $default, int $min, int $max): int {
