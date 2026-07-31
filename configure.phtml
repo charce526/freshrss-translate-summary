@@ -4,21 +4,11 @@ if (!isset($this) || !$this instanceof TranslateSummaryExtension) {
     return;
 }
 
-$baseUrl = $this->getConfigValue('api_base_url');
-$apiKey = $this->getConfigValue('api_key');
-$model = $this->getConfigValue('model');
+$profiles = $this->getApiProfiles();
 $requestTimeout = $this->getRequestTimeout();
 $connectTimeout = $this->getConnectTimeout();
 $translatePrompt = $this->getConfigValue('translate_prompt');
 $summaryPrompt = $this->getConfigValue('summary_prompt');
-
-if ($baseUrl === '') {
-    $baseUrl = 'https://api.openai.com/v1';
-}
-
-if ($model === '') {
-    $model = 'gpt-3.5-turbo';
-}
 
 if ($translatePrompt === '') {
     $translatePrompt = '请将以下内容翻译为中文，并尽可能保留原有 HTML 结构。';
@@ -28,35 +18,27 @@ if ($summaryPrompt === '') {
     $summaryPrompt = '请使用中文简明总结以下内容，提炼关键功能、新增内容、修复问题和重要变更。仅返回可直接插入网页的 HTML 片段，不要使用 Markdown，不要输出代码围栏、星号粗体、井号标题或 Markdown 列表标记；不要输出 html、head、body 标签。使用 p、h3、ul、li、strong、code 等 HTML 标签组织内容，只输出最终摘要，不要解释输出格式。';
 }
 
+$profilesJson = json_encode($profiles, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+if (!is_string($profilesJson)) {
+    $profilesJson = '[]';
+}
 ?>
-<form method="post" action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" data-auto-leave-validation="1">
+<form method="post" action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" data-auto-leave-validation="1" id="translate-cn-settings-form">
     <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars(FreshRSS_Auth::csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" id="translate-cn-api-profiles" name="api_profiles" value="<?php echo htmlspecialchars($profilesJson, ENT_QUOTES, 'UTF-8'); ?>">
 
     <fieldset class="form-group">
-        <legend>OpenAI 兼容 API</legend>
-
-        <div class="form-group">
-            <label class="group-name" for="translate-cn-api-base-url">API 基础地址</label>
-            <div class="group-controls">
-                <input id="translate-cn-api-base-url" name="api_base_url" type="text" value="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://api.openai.com/v1">
-                <p class="help">示例：https://api.openai.com/v1</p>
-            </div>
+        <legend>API 与模型配置</legend>
+        <p class="help">可以添加多个 OpenAI 兼容 API 与模型。文章工具栏会显示配置名称和模型名称，但不会暴露 API 密钥。</p>
+        <div id="translate-cn-profile-list" class="translate-cn-profile-list"></div>
+        <div class="translate-cn-profile-actions">
+            <button class="btn" type="button" id="translate-cn-add-profile">添加配置</button>
+            <span class="help">最多可保存 20 个配置。同一 API 使用多个模型时，可以复用地址和密钥。</span>
         </div>
+    </fieldset>
 
-        <div class="form-group">
-            <label class="group-name" for="translate-cn-api-key">API 密钥</label>
-            <div class="group-controls">
-                <input id="translate-cn-api-key" name="api_key" type="password" value="<?php echo htmlspecialchars($apiKey, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="new-password">
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label class="group-name" for="translate-cn-model">模型名称</label>
-            <div class="group-controls">
-                <input id="translate-cn-model" name="model" type="text" value="<?php echo htmlspecialchars($model, ENT_QUOTES, 'UTF-8'); ?>" placeholder="gpt-4o">
-            </div>
-        </div>
-
+    <fieldset class="form-group">
+        <legend>通用设置</legend>
         <div class="form-group">
             <label class="group-name" for="translate-cn-request-timeout">请求超时</label>
             <div class="group-controls">
@@ -64,7 +46,6 @@ if ($summaryPrompt === '') {
                 <p class="help">等待 API 完成响应的最长时间，单位为秒。默认 180 秒，可填写 10–600。</p>
             </div>
         </div>
-
         <div class="form-group">
             <label class="group-name" for="translate-cn-connect-timeout">连接超时</label>
             <div class="group-controls">
@@ -72,20 +53,18 @@ if ($summaryPrompt === '') {
                 <p class="help">与 API 服务器建立连接的最长时间，单位为秒。默认 30 秒，可填写 1–120。</p>
             </div>
         </div>
-
         <div class="form-group">
             <label class="group-name" for="translate-cn-translate-prompt">翻译提示词</label>
             <div class="group-controls">
                 <textarea id="translate-cn-translate-prompt" name="translate_prompt" rows="4"><?php echo htmlspecialchars($translatePrompt, ENT_QUOTES, 'UTF-8'); ?></textarea>
-                <p class="help">翻译时使用的系统提示词。</p>
+                <p class="help">所有 API 配置共用的翻译系统提示词。</p>
             </div>
         </div>
-
         <div class="form-group">
             <label class="group-name" for="translate-cn-summary-prompt">摘要提示词</label>
             <div class="group-controls">
                 <textarea id="translate-cn-summary-prompt" name="summary_prompt" rows="6"><?php echo htmlspecialchars($summaryPrompt, ENT_QUOTES, 'UTF-8'); ?></textarea>
-                <p class="help">生成摘要时使用的系统提示词。</p>
+                <p class="help">所有 API 配置共用的摘要系统提示词。</p>
             </div>
         </div>
     </fieldset>
@@ -96,3 +75,109 @@ if ($summaryPrompt === '') {
         </div>
     </div>
 </form>
+
+<script>
+(function () {
+    'use strict';
+    var maxProfiles = 20;
+    var list = document.getElementById('translate-cn-profile-list');
+    var hidden = document.getElementById('translate-cn-api-profiles');
+    var addButton = document.getElementById('translate-cn-add-profile');
+    var form = document.getElementById('translate-cn-settings-form');
+    if (!list || !hidden || !addButton || !form) return;
+
+    var profiles = [];
+    try {
+        var parsed = JSON.parse(hidden.value || '[]');
+        profiles = Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        profiles = [];
+    }
+    if (profiles.length === 0) {
+        profiles.push({name: '默认配置', base_url: 'https://api.openai.com/v1', api_key: '', model: 'gpt-3.5-turbo'});
+    }
+
+    function valueOf(value) {
+        return value == null ? '' : String(value);
+    }
+    function createInput(labelText, field, type, placeholder, profile) {
+        var label = document.createElement('label');
+        var span = document.createElement('span');
+        var input = document.createElement('input');
+        span.textContent = labelText;
+        input.type = type;
+        input.value = valueOf(profile[field]);
+        input.placeholder = placeholder || '';
+        input.autocomplete = field === 'api_key' ? 'new-password' : 'off';
+        input.dataset.field = field;
+        label.appendChild(span);
+        label.appendChild(input);
+        return label;
+    }
+    function syncHidden() {
+        hidden.value = JSON.stringify(profiles);
+    }
+    function render() {
+        list.innerHTML = '';
+        profiles.forEach(function (profile, index) {
+            var card = document.createElement('section');
+            var header = document.createElement('div');
+            var title = document.createElement('strong');
+            var removeButton = document.createElement('button');
+            var grid = document.createElement('div');
+            card.className = 'translate-cn-profile-card';
+            card.dataset.index = String(index);
+            header.className = 'translate-cn-profile-card-header';
+            title.textContent = 'API 配置 ' + (index + 1);
+            removeButton.type = 'button';
+            removeButton.className = 'btn translate-cn-profile-remove';
+            removeButton.textContent = '删除';
+            removeButton.disabled = profiles.length <= 1;
+            removeButton.dataset.removeIndex = String(index);
+            grid.className = 'translate-cn-profile-grid';
+            grid.appendChild(createInput('配置名称', 'name', 'text', '例如：OpenAI 主线路', profile));
+            grid.appendChild(createInput('模型名称', 'model', 'text', '例如：gpt-4o', profile));
+            grid.appendChild(createInput('API 基础地址', 'base_url', 'url', 'https://api.openai.com/v1', profile));
+            grid.appendChild(createInput('API 密钥', 'api_key', 'password', 'sk-...', profile));
+            header.appendChild(title);
+            header.appendChild(removeButton);
+            card.appendChild(header);
+            card.appendChild(grid);
+            list.appendChild(card);
+        });
+        addButton.disabled = profiles.length >= maxProfiles;
+        syncHidden();
+    }
+
+    list.addEventListener('input', function (event) {
+        var input = event.target.closest('input[data-field]');
+        var card = event.target.closest('.translate-cn-profile-card');
+        if (!input || !card) return;
+        var index = Number(card.dataset.index);
+        if (!Number.isInteger(index) || !profiles[index]) return;
+        profiles[index][input.dataset.field] = input.value;
+        syncHidden();
+    });
+    list.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-remove-index]');
+        if (!button || profiles.length <= 1) return;
+        var index = Number(button.dataset.removeIndex);
+        if (!Number.isInteger(index)) return;
+        profiles.splice(index, 1);
+        render();
+    });
+    addButton.addEventListener('click', function () {
+        if (profiles.length >= maxProfiles) return;
+        var previous = profiles[profiles.length - 1] || {};
+        profiles.push({
+            name: '配置 ' + (profiles.length + 1),
+            base_url: valueOf(previous.base_url) || 'https://api.openai.com/v1',
+            api_key: valueOf(previous.api_key),
+            model: valueOf(previous.model) || 'gpt-3.5-turbo'
+        });
+        render();
+    });
+    form.addEventListener('submit', syncHidden);
+    render();
+})();
+</script>
