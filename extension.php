@@ -17,6 +17,7 @@ final class TranslateSummaryExtension extends Minz_Extension {
         $this->registerController('TranslateSummary');
 
         Minz_View::appendScript($this->getFileUrl('translate.js'));
+        Minz_View::appendScript($this->getFileUrl('configure.js'));
         Minz_View::appendStyle($this->getFileUrl('translate.css'));
     }
 
@@ -51,7 +52,6 @@ final class TranslateSummaryExtension extends Minz_Extension {
 
         $config = [
             'api_profiles' => $profilesJson,
-            // Keep the first profile in the legacy fields for backward compatibility.
             'api_base_url' => $firstProfile['base_url'],
             'api_key' => $firstProfile['api_key'],
             'model' => $firstProfile['model'],
