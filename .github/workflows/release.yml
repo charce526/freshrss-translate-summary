@@ -17,6 +17,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Maintain requested releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          for TAG in v0.3.0 v0.3.1 v0.3.2; do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release delete "$TAG" --yes
+            fi
+          done
+          gh release edit v0.3.3 --notes "支持多个模型切换"
+
       - name: Read extension version
         id: version
         shell: bash
@@ -71,4 +83,4 @@ jobs:
             "freshrss-translate-summary-${VERSION}.zip" \
             --target "$GITHUB_SHA" \
             --title "FreshRSS 翻译与摘要 v${VERSION}" \
-            --notes "重构多 API 配置页面：新增、复制和删除配置改用 FreshRSS 原生服务端表单提交，彻底移除配置页对 JavaScript 的依赖；保留多模型切换、旧配置迁移和可配置超时功能。"
+            --notes "支持多个模型切换"
