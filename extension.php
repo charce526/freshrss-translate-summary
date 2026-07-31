@@ -17,7 +17,6 @@ final class TranslateSummaryExtension extends Minz_Extension {
         $this->registerController('TranslateSummary');
 
         Minz_View::appendScript($this->getFileUrl('translate.js'));
-        Minz_View::appendScript($this->getFileUrl('configure.js'));
         Minz_View::appendStyle($this->getFileUrl('translate.css'));
     }
 
@@ -39,9 +38,61 @@ final class TranslateSummaryExtension extends Minz_Extension {
             120
         );
 
-        $profiles = $this->decodeApiProfiles(Minz_Request::paramString('api_profiles', true));
+        $profiles = $this->readPostedApiProfiles();
+        if ($profiles === []) {
+            // Backward compatibility with the JavaScript-based v0.3.x form.
+            $profiles = $this->decodeApiProfiles(Minz_Request::paramString('api_profiles', true));
+        }
         if ($profiles === []) {
             $profiles = $this->getApiProfiles();
+        }
+
+        $notice = '翻译与摘要设置已保存。';
+        $profileAction = Minz_Request::paramString('profile_action', true);
+        $copyProfile = Minz_Request::paramString('copy_profile', true);
+        $removeProfile = Minz_Request::paramString('remove_profile', true);
+
+        if ($profileAction === 'add') {
+            if (count($profiles) >= self::MAX_API_PROFILES) {
+                $notice = '最多只能保存 20 个 API 配置。';
+            } else {
+                $previous = $profiles[count($profiles) - 1] ?? null;
+                $profiles[] = [
+                    'name' => '配置 ' . (count($profiles) + 1),
+                    'base_url' => is_array($previous) ? $previous['base_url'] : self::DEFAULT_BASE_URL,
+                    'api_key' => '',
+                    'model' => is_array($previous) ? $previous['model'] : self::DEFAULT_MODEL,
+                ];
+                $notice = '已添加新的 API 配置，请填写后保存。';
+            }
+        } elseif (ctype_digit($copyProfile)) {
+            $copyIndex = (int)$copyProfile;
+            if (count($profiles) >= self::MAX_API_PROFILES) {
+                $notice = '最多只能保存 20 个 API 配置。';
+            } elseif (isset($profiles[$copyIndex])) {
+                $copy = $profiles[$copyIndex];
+                $copy['name'] = $copy['name'] . ' 副本';
+                $profiles[] = $copy;
+                $notice = '已复制 API 配置，可修改模型或其他参数后保存。';
+            }
+        } elseif (ctype_digit($removeProfile)) {
+            $removeIndex = (int)$removeProfile;
+            if (count($profiles) <= 1) {
+                $notice = '至少需要保留一个 API 配置。';
+            } elseif (isset($profiles[$removeIndex])) {
+                array_splice($profiles, $removeIndex, 1);
+                $notice = 'API 配置已删除。';
+            }
+        }
+
+        $profiles = array_values(array_slice($profiles, 0, self::MAX_API_PROFILES));
+        if ($profiles === []) {
+            $profiles = [[
+                'name' => '默认配置',
+                'base_url' => self::DEFAULT_BASE_URL,
+                'api_key' => '',
+                'model' => self::DEFAULT_MODEL,
+            ]];
         }
 
         $firstProfile = $profiles[0];
@@ -62,7 +113,11 @@ final class TranslateSummaryExtension extends Minz_Extension {
         ];
 
         $this->setConfigValues($config);
-        Minz_Session::_param('notice', '翻译与摘要设置已保存。');
+        Minz_Request::good($notice, [
+            'c' => 'extension',
+            'a' => 'configure',
+            'params' => ['e' => $this->getName()],
+        ]);
     }
 
     public function injectTranslateUi(FreshRSS_Entry $entry): FreshRSS_Entry {
@@ -179,6 +234,45 @@ final class TranslateSummaryExtension extends Minz_Extension {
         }
 
         $this->setUserConfiguration($current);
+    }
+
+    /**
+     * @return list<array{name:string,base_url:string,api_key:string,model:string}>
+     */
+    private function readPostedApiProfiles(): array {
+        $names = Minz_Request::paramArrayString('profile_name', true);
+        $baseUrls = Minz_Request::paramArrayString('profile_base_url', true);
+        $apiKeys = Minz_Request::paramArrayString('profile_api_key', true);
+        $models = Minz_Request::paramArrayString('profile_model', true);
+        $count = min(self::MAX_API_PROFILES, max(count($names), count($baseUrls), count($apiKeys), count($models)));
+
+        if ($count <= 0) {
+            return [];
+        }
+
+        $profiles = [];
+        for ($index = 0; $index < $count; $index++) {
+            $item = [
+                'name' => $names[$index] ?? '',
+                'base_url' => $baseUrls[$index] ?? '',
+                'api_key' => $apiKeys[$index] ?? '',
+                'model' => $models[$index] ?? '',
+            ];
+
+            $name = $this->profileString($item, 'name', 100);
+            $baseUrl = $this->profileString($item, 'base_url', 2048);
+            $apiKey = $this->profileString($item, 'api_key', 4096);
+            $model = $this->profileString($item, 'model', 255);
+
+            $profiles[] = [
+                'name' => $name !== '' ? $name : '配置 ' . ($index + 1),
+                'base_url' => $baseUrl !== '' ? rtrim($baseUrl, '/') : self::DEFAULT_BASE_URL,
+                'api_key' => $apiKey,
+                'model' => $model !== '' ? $model : self::DEFAULT_MODEL,
+            ];
+        }
+
+        return $profiles;
     }
 
     /**
